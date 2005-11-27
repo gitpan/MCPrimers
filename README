@@ -1,0 +1,67 @@
+README for MCPrimers.pm V 1.00 and mcprimers
+
+1. Authorship and copyright
+
+Author:    Stephen G. Lenk, November 2005
+Copyright: Stephen G. Lenk (C) 2005. All rights reserved. 
+
+This program is free software; you can redistribute it and/or  
+modify it under the same terms as Perl itself.
+Licenced under the Perl Artistic Licence.
+
+############################################################################
+# This software comes with no guarantee of usefulness.
+# Use at your own risk.
+# There is no guarantee this code will find the best solution, or even any 
+# solution, or that the solutions it finds will be correct or useful to you.
+#
+# Use at your risk. Check any solutions you obtain.
+#
+# Stephen G. Lenk assumes no responsibility for the use of this software.
+############################################################################
+
+Primer3 is called by this code to verify that the PCR primers are OK.
+Primer3 is Copyright (c) 1996,1997,1998,1999,2000,2001,2004
+Whitehead Institute for Biomedical Research. All rights reserved.
+
+2. Installation
+
+MCPrimers.pm  - Place into Perl Bio/MCPrimers.pm.
+mcprimers.bat - Front end script for MSWindows 
+mcprimers     - Rename as mcprimers for other OS (OSX, etc)
+
+PRIMER3DIR -   set this environment variable to point to Primer3 executable.
+If PRIMER3DIR is not set, MCPrimers will set it to '.' by default.
+
+MSWindows -    use primer3.exe
+Other OS  -    use primer3_core, have IPC::Open3 in search path
+
+3. Purpose
+
+Creates molecular cloning PCR primer pairs for a given gene so that the
+gene can be directionally inserted into a vector. pET-32a is the only
+vector currently supported. Solver is generic, restriction enzymes are
+and their order in the vector are specified in the caller.
+
+4. Use
+
+Use:     mcprimers [options] dna.fasta > result.pr3
+Options: [-h] [-s search_shift] [-all] [-clamp (both | 3prime)]
+
+-h        help
+-s        integer value to shift search of left RE match into gene
+          use -s 24 (or other value) if initial search fails
+-all      generate all solutions the MCPrimer heuristic will generate
+-clamp    GC clamp
+          'both' will clamp last NT at both ends to G or C (default)
+          '3prime' will clamp last NT on 3' ends to G or C
+          
+Example:  mcprimers -s 12 -clamp 3prime -all ppib.fa > ppib_all.pr3
+
+---------------
+
+Enjoy,
+
+Steve Lenk
+slenk@emich.edu
+

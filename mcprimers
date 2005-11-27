@@ -1,0 +1,217 @@
+#!/usr/bin/perl -I.
+
+my $VERSION = '1.00';
+
+# mcprimers - molecular cloning PCR primers for pET-32a
+
+# Author:    Stephen G. Lenk, November 2005
+# Copyright: Stephen G. Lenk (C) 2005. All rights reserved. 
+
+# This program is free software; you can redistribute it and/or  
+# modify it under the same terms as Perl itself.
+# Licenced under the Perl Artistic Licence.
+
+#########################################################################
+# This software comes with no guarantee of usefulness. 
+# Use at your own risk. Check any solutions you obtain.
+# Stephen G. Lenk assumes no responsibility for the use of this software.
+#########################################################################
+
+# Limitation: Does not account for redundancy codes.
+# Note:       MS Windows runs use intermediate files. This means that
+#             CGI or other use that can overwrite these files is
+#             a bad idea. Non-MS Windows uses IPC::Open3 pipes.
+
+
+use strict;
+use warnings;
+
+require Bio::MCPrimers;
+
+
+my $input_fh;
+my $use_msg = qq/
+Generates molecular cloning PCR primers for pET-32a insertion.
+
+Use:     mcprimers [options] dna.fasta > result.pr3
+Options: [-h] [-s search_shift] [-all] [-clamp (both | 3prime)]
+
+-h        help
+-s        integer value to shift search of left RE match into gene
+          use -s 24 (or other value) if initial search fails
+-all      generate all solutions the MCPrimer heuristic will generate
+-clamp    GC clamp
+          'both' will clamp last NT at both ends to G or C (default)
+          '3prime' will clamp last NT on 3' ends to G or C
+
+Use at your risk. Check any solutions you obtain.
+          
+/;
+
+
+my %flag;
+my $flag;
+
+
+# command line options
+while (@ARGV > 0) { 
+
+    $flag = shift @ARGV;
+    my $found = 0;
+
+    if ($flag eq "-h") {
+    
+        # help
+        print STDERR $use_msg;
+        exit(1);
+    }        
+    elsif ($flag eq "-s") {
+    
+        # search shift
+        if (@ARGV) {
+            $flag{search_shift} = shift @ARGV;
+            if ($flag{search_shift} =~ /^(\d)+$/) {
+                $found = 1;
+            } else {
+                die "\n-s $flag{search_shift} not recognised\n\n";
+            }
+        } else {
+            die "\n-s needs an argument\n\n";
+        }
+    }
+    elsif ($flag eq "-all") {
+
+        # all solutions
+        $flag{all} = 1;
+        $found = 1;
+    }
+    elsif ($flag eq "-clamp") {
+
+        # GC clamping
+        if (@ARGV) {
+            $flag{clamp} = shift @ARGV;
+            if ($flag{clamp} eq 'both' or $flag{clamp} eq '3prime') {
+                $found = 1;
+            } else {
+                die "\n-clamp $flag{clamp} not recognised\n\n";
+            }
+        } else {
+            die "\n-clamp needs an argument\n\n";
+        }
+    }
+    
+    # unknown flag
+    if (not $found and @ARGV) {
+        die "\nOption $flag not recognised\n\n";
+    }
+    
+    # Should be a FASTA file name left at the end
+    if ($found and @ARGV == 0) {
+        die "\nSpecify a FASTA file for input\n\n";  
+    }
+}
+
+
+# open input file
+my $infile = $flag;
+if (not defined $infile) { 
+    print STDERR $use_msg;
+    exit(0);
+}
+open $input_fh, "<$infile" or die "\n\nCan\'t use $infile for input\n\n";
+
+
+my $line;          # read lines
+my $gene = '';     # then load nucleotides into $gene
+
+
+# read fasta file
+$line = <$input_fh>;
+$line = <$input_fh>;
+while (defined $line) {
+
+   chomp $line;
+   $gene .= $line;
+   $line = <$input_fh>;
+}
+
+
+my @re;                  # restriction enzymes pattern
+                         # pET-32a
+push @re, 'CCATGG';      # NcoI
+push @re, 'GATATC';      # EcoRV
+push @re, 'GGATCC';      # BamHI
+push @re, 'GAATTC';      # EcoRI
+push @re, 'GAGCTC';      # SacI
+push @re, 'GTCGAC';      # SalI
+push @re, 'AAGCTT';      # HindIII
+push @re, 'GCGGCCGC';    # NotI, EagI
+push @re, 'CTCGAG';      # AvaI, XhoI
+
+my %re_name;             # names of restriction enzymes
+
+$re_name{CCATGG}   = 'NcoI ';
+$re_name{GATATC}   = 'EcoRV';
+$re_name{GGATCC}   = 'BamHI';
+$re_name{GAATTC}   = 'EcoRI';
+$re_name{GAGCTC}   = 'SacI ';
+$re_name{GTCGAC}   = 'SalI ';
+$re_name{AAGCTT}   = 'HindIII';
+$re_name{GCGGCCGC} = 'NotI, EagI';
+$re_name{CTCGAG}   = 'AvaI, XhoI';
+
+my $result;              # printable result
+
+
+# Copyright notices, Primer3 here as MCPrimers uses Primer3
+my $copr = 
+qq/   
+|--------------------------------------------------------------------------|
+| MCPrimers V$VERSION Copyright (c) 2005 Stephen G. Lenk. All rights reserved. |
+|                                                                          |
+| Primer3 Copyright (c) 1996,1997,1998,1999,2000,2001,2004                 |
+| Whitehead Institute for Biomedical Research. All rights reserved.        |
+|--------------------------------------------------------------------------|
+/;
+
+print $copr;
+
+
+# invoke solver
+my $answer_ar = Bio::MCPrimers::find_mc_primers($gene, \%flag, @re);
+
+
+if (@{$answer_ar} == 0) { 
+
+    # No solution found
+    print "\nNo solution found\n\n";
+
+} else {
+
+    # Dump the solutions
+    my $count = 0;
+    foreach my $answer_hr (@{$answer_ar}) {
+
+        # handle count
+        $count += 1;
+        my $count_text = '';
+        if (defined $flag{all}) {
+            $count_text = 
+                "=========\n=========  Solution # $count\n=========";
+        }
+        
+        # compose result text
+        my $result = qq/
+Left RE site  = $re_name{$answer_hr->{left_re}} ($answer_hr->{left_re})
+Right RE site = $re_name{$answer_hr->{right_re}} ($answer_hr->{right_re})
+
+Primer3 analysis of PCR primers designed by MCPrimers:
+
+$answer_hr->{primer3}/;
+
+        print "$count_text\n$result\n\n";
+    }
+}
+
+
+exit(0);
